@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #############################################################################
-# svnbackup.pl  version .11-beta                                             #
+# svnbackup.pl  version .12-beta                                             #
 #                                                                           #
 # History and information:                                                  #
 # http://www.ghostwheel.com/merlin/Personal/notes/svnbackuppl/              #
@@ -32,6 +32,9 @@
 #      directory and automagically restore the entire backup                #
 #                                                                           #
 #############################################################################
+#                                                                           #
+# Version .12-beta changes                                                  #
+# - Fixed an incorrect file test operator in svnrestore.pl                  #
 #                                                                           #
 # Version .11-beta changes                                                  #
 # - Added backup and restore of the conf/ and hooks/ directories.           #

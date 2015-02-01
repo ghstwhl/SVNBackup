@@ -44,6 +44,10 @@ svnrestore.pl BACKUPDIR REPODIR
 
 # Version History
 
+***Version .12-beta changes***
+
+* Fixed an incorrect file test operator in svnrestore.pl
+
 ***Version .11-beta changes***
 
 * Added backup and restore of the conf/ and hooks/ directories.

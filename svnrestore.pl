@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #############################################################################
-# svnrestore.pl  version .11-beta                                           #
+# svnrestore.pl  version .12-beta                                           #
 #                                                                           #
 # History and information:                                                  #
 # http://www.ghostwheel.com/merlin/Personal/notes/svnbackuppl/              #
@@ -33,6 +33,9 @@
 #    - Add better activity messages                                         #
 #                                                                           #
 #############################################################################
+#                                                                           #
+# Version .12-beta changes                                                  #
+# - Fixed an incorrect file test operator in svnrestore.pl                  #
 #                                                                           #
 # Version .11-beta changes                                                  #
 # - Added backup and restore of the conf/ and hooks/ directories.           #
@@ -98,7 +101,7 @@ foreach $Util (@Utils)
 		}
 	elsif ( !($UtilLocation{$Util} = `which $Util`) )
 		{
-		die ("Unable to fine $Util in the current PATH.\n");
+		die ("Unable to find $Util in the current PATH.\n");
 		}
 	$UtilLocation{$Util} =~ s/[\n\r]*//g;
 	print "$Util - $UtilLocation{$Util}\n" if $DEBUG;
@@ -186,7 +189,7 @@ print "$UtilLocation{'svnadmin'} create $REPODIR\n" if $DEBUG;
 system("$UtilLocation{'svnadmin'} create $REPODIR");
 
 foreach $BackupFile (@BACKUPFILES) {
-	if ( -e $BackupFile ) {
+	if ( -f $BackupFile ) {
 		print "$UtilLocation{'gunzip'} -c $BackupFile | $UtilLocation{'svnadmin'} load $REPODIR\n" if $DEBUG;
 		$status = system("$UtilLocation{'gunzip'} -c $BackupFile | $UtilLocation{'svnadmin'} load $REPODIR");
 		if ( $status != 0) {
@@ -212,7 +215,7 @@ close(BACKUPID);
 
 ## Restore the config/ and hooks/ directories to the Repository
 foreach $SpecialSubDirectory ( ('hooks', 'conf') ) {
-	if ( -e "$BACKUPDIR/$SpecialSubDirectory.tgz" ) {
+	if ( -f "$BACKUPDIR/$SpecialSubDirectory.tgz" ) {
 		($StartingPath = "$OLDREPODIR") =~ s/^\///;
 		my $tar = Archive::Tar->new;
 		$tar->read("$BACKUPDIR/$SpecialSubDirectory.tgz") || die ("Unable to open $BACKUPDIR/$SpecialSubDirectory.tgz \n");
