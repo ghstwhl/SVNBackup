@@ -44,6 +44,11 @@ svnrestore.pl BACKUPDIR REPODIR
 
 # Version History
 
+***Version .14-beta changes***
+
+* Fixed bad logic in the utility file path code.
+* Added a set of common path locations to the search path.
+
 ***Version .13-beta changes***
 
 * Improved lock file detection to prevent concurrent execution, and added a message stating the age of the lockfile if one is found.

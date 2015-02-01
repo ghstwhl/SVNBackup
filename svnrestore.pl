@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #############################################################################
-# svnrestore.pl  version .13-beta                                           #
+# svnrestore.pl  version .14-beta                                           #
 #                                                                           #
 # History and information:                                                  #
 # http://www.ghostwheel.com/merlin/Personal/notes/svnbackuppl/              #
@@ -33,6 +33,10 @@
 #    - Add better activity messages                                         #
 #                                                                           #
 #############################################################################
+#                                                                           #
+# Version .14-beta changes                                                  #
+# - Fixed bad logic in the utility file path code.                          #
+# - Added a set of common path locations to the search path.                #
 #                                                                           #
 # Version .13-beta changes                                                  #
 # - Improved lock file detection to prevent concurrent execution, and added #
@@ -83,7 +87,7 @@
 ## * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 ## * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use warnings;
+#use warnings;
 use File::Path;
 use Archive::Tar;
 use Time::localtime;
@@ -93,24 +97,34 @@ $VERSION="Version 0.13-Beta";
 ## Change to 1 if you want debugging messages.
 $DEBUG=0;
 
-
 ## Here is an example of how to specify a location for a particular utility.  
 #$UtilLocation{'gunzip'} = '/usr/bin/gunzip';
+
+
+## Let's make sure there is a good PATH in place when this script runs:
+$ENV{'PATH'} .= ':/sbin:/bin:/usr/sbin:/usr/bin:/usr/games:/usr/local/sbin:/usr/local/bin:/opt/bin:/opt/sbin:/opt/local/bin:/opt/local/sbin:~/bin';
 
 ## Locate the following utilities for use by the script
 @Utils = ('svnlook', 'svnadmin', 'gzip', 'gunzip', 'tar', 'chown');
 foreach $Util (@Utils) 
 	{
-	if ($UtilLocation{$Util} && (!-f $UtilLocation{$Util}) )
+
+    ##  Populate $UtilLocation{$Util} if it isn't set manually
+    if ( !(defined($UtilLocation{$Util})) ) 
 		{
-		die ("$Util path is specified ($UtilLocation{$Util}) but is incorrect.\n");
-		}
-	elsif ( !($UtilLocation{$Util} = `which $Util`) )
+		($UtilLocation{$Util} = `which $Util`) =~ s/[\n\r]*//g;
+		}      
+
+	## If $UtilLocation{$Util} is still not set, we have to abort.	
+	if ( !(defined($UtilLocation{$Util})) || $UtilLocation{$Util} eq "" )
 		{
-		die ("Unable to find $Util in the current PATH.\n");
+		die("Unable to find $Util in the current PATH.\n");
 		}
-	$UtilLocation{$Util} =~ s/[\n\r]*//g;
-	print "$Util - $UtilLocation{$Util}\n" if $DEBUG;
+	elsif ( !(-f $UtilLocation{$Util}) )
+		{
+		die("$UtilLocation{$Util} is not valid.\n");
+		}
+
 	}
 
 
