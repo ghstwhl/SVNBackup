@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #############################################################################
-# svnbackup.pl  version .10-beta                                             #
+# svnbackup.pl  version .11-beta                                             #
 #                                                                           #
 # History and information:                                                  #
 # http://www.ghostwheel.com/merlin/Personal/notes/svnbackuppl/              #
@@ -33,6 +33,10 @@
 #                                                                           #
 #############################################################################
 #                                                                           #
+# Version .11-beta changes                                                  #
+# - Added backup and restore of the conf/ and hooks/ directories.           #
+# - Preserve and restore the user/group ownership of the SVN repository.    #
+#                                                                           #
 # Version .10-beta changes                                                  #
 # - Added locating utilities from within PATH so that this script should    #
 #   run without modification on most systems.                               #
@@ -48,7 +52,7 @@
 #############################################################################
 
 
-## * Copyright (c) 2008, Chris O'Halloran
+## * Copyright (c) 2008,2009, Chris O'Halloran
 ## * All rights reserved.
 ## *
 ## * Redistribution and use in source and binary forms, with or without
@@ -75,13 +79,18 @@
 
 
 use File::Path;
+use File::Find;
+use Archive::Tar;
 
+
+## Change to 1 if you want debugging messages.
+$DEBUG=0;
 
 ## Here is an example of how to specify a location for a particular utility.  
 #$UtilLocation{'gunzip'} = '/usr/bin/gunzip';
 
 ## Locate the following utilities for use by the script
-@Utils = ('svnlook', 'svnadmin', 'gzip', 'gunzip');
+@Utils = ('svnlook', 'svnadmin', 'gzip', 'gunzip', 'tar', 'chown');
 foreach $Util (@Utils) 
 	{
 	if ($UtilLocation{$Util} && (!-f $UtilLocation{$Util}) )
@@ -95,11 +104,6 @@ foreach $Util (@Utils)
 	$UtilLocation{$Util} =~ s/[\n\r]*//g;
 	print "$Util - $UtilLocation{$Util}\n" if $DEBUG;
 	}
-
-
-## Change to 1 if you want debugging messages.
-$DEBUG=0;
-
 
 
 ## Verify the number of arguments supplied matches the requirements, and prints a usage statement
@@ -150,7 +154,10 @@ if ( -d $BACKUPDIR )
 	if ( -f "$BACKUPDIR/svnbackup.id" )
 		{
 		## svnbackup.id exists, so lets read the contents and see if it matches the repo
-		($SVNBACKUP = `cat $BACKUPDIR/svnbackup.id`) =~ s/[\n\r]//g;
+		open(BACKUPID, "$BACKUPDIR/svnbackup.id");
+		($SVNBACKUP = <BACKUPID>) =~ s/[\n\r]//g;
+		($OLDPERMS = <BACKUPID>) =~ s/[\n\r]//g;
+		close(BACKUPID);
 		print "SVNBACKUP: $SVNBACKUP\n" if $DEBUG;
 		if ( $SVNBACKUP eq $REPODIR )
 			## Since the repo and the backup match, we need to read information about the last backup.
@@ -205,7 +212,14 @@ else
 if ( !(-f "$BACKUPDIR/svnbackup.id") )
 	{
 	## svnbackup.id did not exist, so let's create it and write the path for the repo passed to this script
-	`echo $REPODIR > $BACKUPDIR/svnbackup.id`;
+	## 2009-07-06 - Also store the owner:group of the repository in the svnbackup.id file for use in svnrestore.pl
+	open(BACKUPID, ">$BACKUPDIR/svnbackup.id");
+	print BACKUPID "$REPODIR\n";
+	
+	my ($dev, $ino, $mode, $nlink, $uid, $gid, $rdev, $size, $atime, $mtime, $ctime, $blksize, $blocks) = stat("$REPODIR/format");
+	print BACKUPID "$uid:$gid\n";
+
+	close(BACKUPID);
 	}
 	
 ## If $FIRSTTOBACKUP hasn't been defined from the log file, it's automatically a 0
@@ -241,6 +255,18 @@ else
 	print "The backup is current, so there is nothing to do.\n\n";
 	}
 
+
+##  Backup the hooks/ and config/ directories here.
+foreach $SpecialSubDirectory ( ('hooks', 'conf') ) {
+	$StartingPath = "$REPODIR/$SpecialSubDirectory";
+	@TarThemUp = ();
+	find(\&wanted, $StartingPath);
+	my $tar = Archive::Tar->new;
+	$tar->add_files( @TarThemUp );
+	$tar->write("$BACKUPDIR/$SpecialSubDirectory.tgz", COMPRESS_GZIP) || die ("Unable to write $BACKUPDIR/$SpecialSubDirectory.tgz \n");    # gzip compressed
+}
+
+
 ## All done, so let's invoke the lock file removal and exit routine.
 &unlockexit;
 
@@ -252,3 +278,7 @@ sub unlockexit {
 	unlink("/tmp/svnbackup-$LOCKSUFFIX.lock");
 	exit;
 	}
+	
+sub wanted {
+	push(@TarThemUp, $File::Find::name);
+}

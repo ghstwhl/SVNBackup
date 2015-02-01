@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #############################################################################
-# svnrestore.pl  version .10-beta                                           #
+# svnrestore.pl  version .11-beta                                           #
 #                                                                           #
 # History and information:                                                  #
 # http://www.ghostwheel.com/merlin/Personal/notes/svnbackuppl/              #
@@ -13,7 +13,7 @@
 #                                                                           #
 #   If you absolutely need an incremental restore, the log file created by  #
 #   svnbackup.pl is human-readable and the recovery method is documented    #
-#   in the header of svnbackup.pl                                           #
+#   below:                                                                  #
 #                                                                           #
 # Usage:                                                                    #
 #   svnrestore.pl BACKUPDIR REPODIR                                         #
@@ -21,10 +21,22 @@
 #   svnbackup.pl and that REPODIR is either does not exist or is empty.     #
 #                                                                           #
 #                                                                           #
+# Manual Recovery:                                                          #
+#   - use 'svnadmin create' to create a new repository.                     #
+#   - use 'svnadmin load' to restore all of the backup files, in order.     #
+#   ie:                                                                     #
+#      svnadmin create /tmp/test                                            #
+#      gzcat 0-100.svnz | svnadmin load /tmp/test                           #
+#      gzcat 101-110.svnz | svnadmin load /tmp/test                         #
+#                                                                           #
 #  To do:                                                                   #
 #    - Add better activity messages                                         #
 #                                                                           #
 #############################################################################
+#                                                                           #
+# Version .11-beta changes                                                  #
+# - Added backup and restore of the conf/ and hooks/ directories.           #
+# - Preserve and restore the user/group ownership of the SVN repository.    #
 #                                                                           #
 # Version .10-beta changes                                                  #
 # - Added locating utilities from within PATH so that this script should    #
@@ -39,7 +51,7 @@
 #############################################################################
 
 
-## * Copyright (c) 2008, Chris O'Halloran
+## * Copyright (c) 2008,2009, Chris O'Halloran
 ## * All rights reserved.
 ## *
 ## * Redistribution and use in source and binary forms, with or without
@@ -66,12 +78,18 @@
 
 
 use File::Path;
+use Archive::Tar;
+
+
+## Change to 1 if you want debugging messages.
+$DEBUG=0;
+
 
 ## Here is an example of how to specify a location for a particular utility.  
 #$UtilLocation{'gunzip'} = '/usr/bin/gunzip';
 
 ## Locate the following utilities for use by the script
-@Utils = ('svnlook', 'svnadmin', 'gzip', 'gunzip');
+@Utils = ('svnlook', 'svnadmin', 'gzip', 'gunzip', 'tar', 'chown');
 foreach $Util (@Utils) 
 	{
 	if ($UtilLocation{$Util} && (!-f $UtilLocation{$Util}) )
@@ -85,9 +103,6 @@ foreach $Util (@Utils)
 	$UtilLocation{$Util} =~ s/[\n\r]*//g;
 	print "$Util - $UtilLocation{$Util}\n" if $DEBUG;
 	}
-
-## Change to 1 if you want debugging messages.
-$DEBUG=0;
 
 
 ## Verify the number of arguments supplied matches the requirements, and prints a usage statement
@@ -148,22 +163,22 @@ if (-d $REPODIR) {
 	print "REPDIRCHECK: $CountDirEntries file entries in $REPODIR\n" if $DEBUG;
 	if (2 == $CountDirEntries) {
 		print "REPDIRCHECK: $REPODIR is ready to go.\n" if $DEBUG;
-		}
+	}
 	else {
 		print "REPDIRCHECK: $REPODIR is not empty.\n" if $DEBUG;
+		print "Unable to restore to $REPODIR because it is not empty.\n";
 		&unlockexit;
-		}
 	}
+}
 else {
 	## Since it doesn't exist, we will create it.
 	print "REPDIRCHECK: Creating $REPODIR\n" if $DEBUG;
 	eval { mkpath($REPODIR) };
-  	if ($@) 
-  		{
+  	if ($@) {
     	print "Couldn't create $REPODIR: $@\n\n";
     	&unlockexit;
-  		}
-	}
+  	}
+}
 
 
 
@@ -179,13 +194,42 @@ foreach $BackupFile (@BACKUPFILES) {
 			unlink("$BACKUPDIR/$FILENAME");
 			print "\n\n\nERROR:  svnadmin command execution failed.\nSVN Repository at $REPODIR is corrupt and should be deleted.\n";
 			&unlockexit;
-			}
 		}
+	}
 	else {
 		print "ABORT RESTORE:  $BackupFile does not exist.  Can not restore.\n";
 		&unlockexit;
+	}
+} 
+	
+
+##  Load the ld repository information for final restoration tasks
+open(BACKUPID, "$BACKUPDIR/svnbackup.id");
+($OLDREPODIR = <BACKUPID>) =~ s/[\n\r]//g;
+($OLDPERMS = <BACKUPID>) =~ s/[\n\r]//g;
+close(BACKUPID);
+
+
+## Restore the config/ and hooks/ directories to the Repository
+foreach $SpecialSubDirectory ( ('hooks', 'conf') ) {
+	if ( -e "$BACKUPDIR/$SpecialSubDirectory.tgz" ) {
+		($StartingPath = "$OLDREPODIR") =~ s/^\///;
+		my $tar = Archive::Tar->new;
+		$tar->read("$BACKUPDIR/$SpecialSubDirectory.tgz") || die ("Unable to open $BACKUPDIR/$SpecialSubDirectory.tgz \n");
+		@TarredUp = $tar->list_files;
+		foreach $TarFileFullPath ( @TarredUp ) {
+			if ( $TarFileFullPath ne "$StartingPath/$SpecialSubDirectory") {
+				($DestPath = $TarFileFullPath) =~ s/$StartingPath/$REPODIR/xe;
+				$tar->extract_file( $TarFileFullPath,   $DestPath );
+			}
 		}
-	} 
+	}
+}
+	
+	
+
+## Restore the original ownership of the repository
+system($UtilLocation{'chown'}, "-R", $OLDPERMS, $REPODIR);
 
 
 print "\n\nRestore complete!\n";

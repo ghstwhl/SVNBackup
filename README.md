@@ -44,6 +44,10 @@ svnrestore.pl BACKUPDIR REPODIR
 
 # Version History
 
+***Version .11-beta changes***
+
+* Added backup and restore of the conf/ and hooks/ directories.
+* Preserve and restore the user/group ownership of the SVN repository.
 
 ***Version .10-beta changes***
 
