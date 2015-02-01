@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #############################################################################
-# svnbackup.pl  version .12-beta                                             #
+# svnbackup.pl  version .13-beta                                             #
 #                                                                           #
 # History and information:                                                  #
 # http://www.ghostwheel.com/merlin/Personal/notes/svnbackuppl/              #
@@ -9,7 +9,7 @@
 # Synapsis:                                                                 #
 #   This script allows you to make incremental backups of a SVN repository. #
 #   Unlike 'hotcopy' backups, these can efficiently be backed up via        #
-#   rsync or duplicity.                                                     #
+#   rsync or duplicity and can be done while the repository is in use.      #
 #                                                                           #
 # Usage:                                                                    #
 #   svnbackup.pl REPODIR BACKUPDIR                                          #
@@ -28,10 +28,12 @@
 #                                                                           #
 #  To do:                                                                   #
 #    - Add better activity messages                                         #
-#    - Create svnrestore.pl which will read the .log file from a backup     #
-#      directory and automagically restore the entire backup                #
 #                                                                           #
 #############################################################################
+#                                                                           #
+# Version .13-beta changes                                                  #
+# - Improved lock file detection to prevent concurrent execution, and added #
+#   a message stating the age of the lockfile if one is found.              #
 #                                                                           #
 # Version .12-beta changes                                                  #
 # - Fixed an incorrect file test operator in svnrestore.pl                  #
@@ -81,10 +83,13 @@
 ## * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
+use warnings;
 use File::Path;
 use File::Find;
 use Archive::Tar;
+use Time::localtime;
 
+$VERSION="Version 0.13-Beta";
 
 ## Change to 1 if you want debugging messages.
 $DEBUG=0;
@@ -113,6 +118,7 @@ foreach $Util (@Utils)
 ## if necessary.
 if ( @ARGV < 2 )
 	{
+	print "svnbackup.pl - $VERSION\n";
 	print "Insufficient arguments.\n";
 	print "Usage:  svnbackup.pl REPODIR BACKUPDIR\n\n";
 	exit;
@@ -123,7 +129,21 @@ print "REPODIR: $REPODIR\n" if $DEBUG;
 print "BACKUPDIR: $BACKUPDIR\n" if $DEBUG;
 
 ($LOCKSUFFIX = $BACKUPDIR) =~ s/\//_/g;
-open(LOCK, ">/tmp/svnbackup-$LOCKSUFFIX.lock");
+my $LockFile = "/tmp/svnbackup-$LOCKSUFFIX.lock";
+
+
+if ( -f $LockFile ) {
+	## If the lockfile exists, we need to toss up an error and exit.
+	my $message = "A lockfile for $BACKUPDIR already exists.\n";
+	my ($dev, $ino, $mode, $nlink, $uid, $gid, $rdev, $size, $atime, $mtime, $ctime, $blksize, $blocks) = stat($LockFile);
+	my $datetime_string = ctime($mtime);
+	$message .= "$LockFile was created at $datetime_string\n";
+	die($message);
+	}
+
+	
+## If the lockfile doesn't exist, then we need to open and lock it.	
+open(LOCK, ">$LockFile");
 flock(LOCK,2);
 
 
@@ -195,6 +215,13 @@ if ( -d $BACKUPDIR )
 		else
 			{
     		print "Existing backup in $BACKUPDIR (repo $SVNBACKUP) does not match repository $REPODIR.\n\n";
+    		&unlockexit;
+			}
+		
+		my ($dev, $ino, $mode, $nlink, $uid, $gid, $rdev, $size, $atime, $mtime, $ctime, $blksize, $blocks) = stat("$REPODIR/format");
+		if ($OLDPERMS ne "$uid:$gid") 
+			{
+			print "Existing backup in $BACKUPDIR does not have the same OWNER:GROUP ($uid:$gid) as repository $REPODIR ($OLDPERMS).\n\n";
     		&unlockexit;
 			}
 		}
@@ -278,7 +305,7 @@ foreach $SpecialSubDirectory ( ('hooks', 'conf') ) {
 sub unlockexit {
 	flock(LOCK,8);
 	close(LOCK);
-	unlink("/tmp/svnbackup-$LOCKSUFFIX.lock");
+	unlink($LockFile);
 	exit;
 	}
 	

@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #############################################################################
-# svnrestore.pl  version .12-beta                                           #
+# svnrestore.pl  version .13-beta                                           #
 #                                                                           #
 # History and information:                                                  #
 # http://www.ghostwheel.com/merlin/Personal/notes/svnbackuppl/              #
@@ -33,6 +33,10 @@
 #    - Add better activity messages                                         #
 #                                                                           #
 #############################################################################
+#                                                                           #
+# Version .13-beta changes                                                  #
+# - Improved lock file detection to prevent concurrent execution, and added #
+#   a message stating the age of the lockfile if one is found.              #
 #                                                                           #
 # Version .12-beta changes                                                  #
 # - Fixed an incorrect file test operator in svnrestore.pl                  #
@@ -79,10 +83,12 @@
 ## * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 ## * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-
+use warnings;
 use File::Path;
 use Archive::Tar;
+use Time::localtime;
 
+$VERSION="Version 0.13-Beta";
 
 ## Change to 1 if you want debugging messages.
 $DEBUG=0;
@@ -112,6 +118,7 @@ foreach $Util (@Utils)
 ## if necessary.
 if ( @ARGV < 2 )
 	{
+	print "svnrestore.pl - $VERSION\n";
 	print "Insufficient arguments.\n";
 	print "Usage:  svnrestore.pl BACKUPDIR REPO-RESTORE-DIR\n\n";
 	exit;
@@ -122,7 +129,21 @@ print "BACKUPDIR: $BACKUPDIR\n" if $DEBUG;
 print "REPODIR: $REPODIR\n" if $DEBUG;
 
 ($LOCKSUFFIX = $BACKUPDIR) =~ s/\//_/g;
-open(LOCK, ">/tmp/svnbackup-$LOCKSUFFIX.lock");
+my $LockFile = "/tmp/svnbackup-$LOCKSUFFIX.lock";
+
+
+if ( -f $LockFile ) {
+	## If the lockfile exists, we need to toss up an error and exit.
+	my $message = "A lockfile for $BACKUPDIR already exists.\n";
+	my ($dev, $ino, $mode, $nlink, $uid, $gid, $rdev, $size, $atime, $mtime, $ctime, $blksize, $blocks) = stat($LockFile);
+	my $datetime_string = ctime($mtime);
+	$message .= "$LockFile was created at $datetime_string\n";
+	die($message);
+	}
+
+	
+## If the lockfile doesn't exist, then we need to open and lock it.	
+open(LOCK, ">$LockFile");
 flock(LOCK,2);
 
 
@@ -159,7 +180,7 @@ else {
 if (-d $REPODIR) {
 	print "REPDIRCHECK: $REPODIR exists\n" if $DEBUG;
 	## OK, the directory exists, so we need to make sure it is empty.
-	opendir(DIR, $REPODIR) or die "can't opendir $dirname: $!";
+	opendir(DIR, $REPODIR) or die "can't opendir $REPODIR: $!";
 	@FILES = readdir(DIR);
 	$CountDirEntries = scalar(@FILES);
 	closedir(DIR);
@@ -194,7 +215,6 @@ foreach $BackupFile (@BACKUPFILES) {
 		$status = system("$UtilLocation{'gunzip'} -c $BackupFile | $UtilLocation{'svnadmin'} load $REPODIR");
 		if ( $status != 0) {
 			## We have had a problem with svnadmin, and need to abort.  
-			unlink("$BACKUPDIR/$FILENAME");
 			print "\n\n\nERROR:  svnadmin command execution failed.\nSVN Repository at $REPODIR is corrupt and should be deleted.\n";
 			&unlockexit;
 		}
@@ -245,6 +265,6 @@ print "\n\nRestore complete!\n";
 sub unlockexit {
 	flock(LOCK,8);
 	close(LOCK);
-	unlink("/tmp/svnbackup-$LOCKSUFFIX.lock");
+	unlink($LockFile);
 	exit;
 	}

@@ -44,6 +44,10 @@ svnrestore.pl BACKUPDIR REPODIR
 
 # Version History
 
+***Version .13-beta changes***
+
+* Improved lock file detection to prevent concurrent execution, and added a message stating the age of the lockfile if one is found.
+
 ***Version .12-beta changes***
 
 * Fixed an incorrect file test operator in svnrestore.pl
