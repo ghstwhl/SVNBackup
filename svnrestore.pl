@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #############################################################################
-# svnrestore.pl  version .14-beta                                           #
+# svnrestore.pl  version .15-beta                                           #
 #                                                                           #
 # History and information:                                                  #
 # http://www.ghostwheel.com/merlin/Personal/notes/svnbackuppl/              #
@@ -33,6 +33,10 @@
 #    - Add better activity messages                                         #
 #                                                                           #
 #############################################################################
+#                                                                           #
+# Version .15-beta changes                                                  #
+# - Fixed an issue where moving the backup directory would cause            #
+#   svnrestore.pl to see the backup as invalid.                             #
 #                                                                           #
 # Version .14-beta changes                                                  #
 # - Fixed bad logic in the utility file path code.                          #
@@ -95,7 +99,7 @@ use Time::localtime;
 $VERSION="Version 0.13-Beta";
 
 ## Change to 1 if you want debugging messages.
-$DEBUG=0;
+$DEBUG=1;
 
 ## Here is an example of how to specify a location for a particular utility.  
 #$UtilLocation{'gunzip'} = '/usr/bin/gunzip';
@@ -168,7 +172,7 @@ if (-f "$BACKUPDIR/svnbackup.id") {
 	if (-f "$BACKUPDIR/svnbackup.log") {
 		open(LOG, "$BACKUPDIR/svnbackup.log");
 		while (<LOG>) {
-			if ( $_ =~ m/[0-9]+\t[0-9]+\t([^ ]+\.svnz)$/ ) {
+			if ( $_ =~ m/[0-9]+\t[0-9]+\t.+\/([0-9\-]+\.svnz)$/ ) {
 				push(@BACKUPFILES, $1);		  	
 		  		}
 			else {
@@ -224,9 +228,9 @@ print "$UtilLocation{'svnadmin'} create $REPODIR\n" if $DEBUG;
 system("$UtilLocation{'svnadmin'} create $REPODIR");
 
 foreach $BackupFile (@BACKUPFILES) {
-	if ( -f $BackupFile ) {
-		print "$UtilLocation{'gunzip'} -c $BackupFile | $UtilLocation{'svnadmin'} load $REPODIR\n" if $DEBUG;
-		$status = system("$UtilLocation{'gunzip'} -c $BackupFile | $UtilLocation{'svnadmin'} load $REPODIR");
+	if ( -f "$BACKUPDIR/$BackupFile" ) {
+		print "$UtilLocation{'gunzip'} -c $BACKUPDIR/$BackupFile | $UtilLocation{'svnadmin'} load $REPODIR\n" if $DEBUG;
+		$status = system("$UtilLocation{'gunzip'} -c $BACKUPDIR/$BackupFile | $UtilLocation{'svnadmin'} load $REPODIR");
 		if ( $status != 0) {
 			## We have had a problem with svnadmin, and need to abort.  
 			print "\n\n\nERROR:  svnadmin command execution failed.\nSVN Repository at $REPODIR is corrupt and should be deleted.\n";
@@ -234,7 +238,7 @@ foreach $BackupFile (@BACKUPFILES) {
 		}
 	}
 	else {
-		print "ABORT RESTORE:  $BackupFile does not exist.  Can not restore.\n";
+		print "ABORT RESTORE:  $BACKUPDIR/$BackupFile does not exist.  Can not restore.\n";
 		&unlockexit;
 	}
 } 

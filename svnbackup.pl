@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #############################################################################
-# svnbackup.pl  version .14-beta                                             #
+# svnbackup.pl  version .15-beta                                             #
 #                                                                           #
 # History and information:                                                  #
 # http://www.ghostwheel.com/merlin/Personal/notes/svnbackuppl/              #
@@ -30,6 +30,10 @@
 #    - Add better activity messages                                         #
 #                                                                           #
 #############################################################################
+#                                                                           #
+# Version .15-beta changes                                                  #
+# - Fixed an issue where moving the backup directory would cause            #
+#   svnrestore.pl to see the backup as invalid.                             #
 #                                                                           #
 # Version .14-beta changes                                                  #
 # - Fixed bad logic in the utility file path code.                          #
