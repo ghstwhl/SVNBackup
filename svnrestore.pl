@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #############################################################################
-# svnrestore.pl  version .15-beta                                           #
+# svnrestore.pl  version .16-beta                                           #
 #                                                                           #
 # History and information:                                                  #
 # http://www.ghostwheel.com/merlin/Personal/notes/svnbackuppl/              #
@@ -33,6 +33,10 @@
 #    - Add better activity messages                                         #
 #                                                                           #
 #############################################################################
+#                                                                           #
+# Version .16-beta changes                                                  #
+# - Fixed a critical issue where the conf/ and hooks/ directories were not  #
+#   being restored to the correct path.                                     #
 #                                                                           #
 # Version .15-beta changes                                                  #
 # - Fixed an issue where moving the backup directory would cause            #
@@ -96,7 +100,7 @@ use File::Path;
 use Archive::Tar;
 use Time::localtime;
 
-$VERSION="Version 0.13-Beta";
+$VERSION="Version 0.16-Beta";
 
 ## Change to 1 if you want debugging messages.
 $DEBUG=1;
@@ -243,7 +247,6 @@ foreach $BackupFile (@BACKUPFILES) {
 	}
 } 
 	
-
 ##  Load the ld repository information for final restoration tasks
 open(BACKUPID, "$BACKUPDIR/svnbackup.id");
 ($OLDREPODIR = <BACKUPID>) =~ s/[\n\r]//g;
@@ -251,22 +254,26 @@ open(BACKUPID, "$BACKUPDIR/svnbackup.id");
 close(BACKUPID);
 
 
+
 ## Restore the config/ and hooks/ directories to the Repository
 foreach $SpecialSubDirectory ( ('hooks', 'conf') ) {
 	if ( -f "$BACKUPDIR/$SpecialSubDirectory.tgz" ) {
-		($StartingPath = "$OLDREPODIR") =~ s/^\///;
+		($StartingPath = "$OLDREPODIR") =~ s/(^\/|\/$)//g;
 		my $tar = Archive::Tar->new;
 		$tar->read("$BACKUPDIR/$SpecialSubDirectory.tgz") || die ("Unable to open $BACKUPDIR/$SpecialSubDirectory.tgz \n");
 		@TarredUp = $tar->list_files;
 		foreach $TarFileFullPath ( @TarredUp ) {
 			if ( $TarFileFullPath ne "$StartingPath/$SpecialSubDirectory") {
+				my $DestPath = '';
 				($DestPath = $TarFileFullPath) =~ s/$StartingPath/$REPODIR/xe;
 				$tar->extract_file( $TarFileFullPath,   $DestPath );
+
 			}
 		}
 	}
 }
 	
+
 	
 
 ## Restore the original ownership of the repository

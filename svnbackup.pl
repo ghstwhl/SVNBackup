@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #############################################################################
-# svnbackup.pl  version .15-beta                                             #
+# svnbackup.pl  version .16-beta                                             #
 #                                                                           #
 # History and information:                                                  #
 # http://www.ghostwheel.com/merlin/Personal/notes/svnbackuppl/              #
@@ -30,6 +30,10 @@
 #    - Add better activity messages                                         #
 #                                                                           #
 #############################################################################
+#                                                                           #
+# Version .16-beta changes                                                  #
+# - Fixed a critical issue where the conf/ and hooks/ directories were not  #
+#   being restored to the correct path.                                     #
 #                                                                           #
 # Version .15-beta changes                                                  #
 # - Fixed an issue where moving the backup directory would cause            #
@@ -97,7 +101,7 @@ use File::Find;
 use Archive::Tar;
 use Time::localtime;
 
-$VERSION="Version 0.13-Beta";
+$VERSION="Version 0.16-Beta";
 
 ## Change to 1 if you want debugging messages.
 $DEBUG=0;

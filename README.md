@@ -44,6 +44,10 @@ svnrestore.pl BACKUPDIR REPODIR
 
 # Version History
 
+***Version .16-beta changes***
+
+* Fixed a critical issue where the conf/ and hooks/ directories were not being restored to the correct path.
+
 ***Version .15-beta changes***
 
 * Fixed an issue where moving the backup directory would cause
