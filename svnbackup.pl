@@ -33,6 +33,10 @@
 #                                                                           #
 #############################################################################
 #                                                                           #
+# Version .17-beta changes                                                  #
+# - Added exit codes.  Pass-thru exit code for svnadmin issues, and also    #
+#   exit codes for some internal functions.                                 #
+#                                                                           #
 # Version .16-beta changes                                                  #
 # - Fixed a critical issue where the conf/ and hooks/ directories were not  #
 #   being restored to the correct path.                                     #
@@ -82,6 +86,9 @@ $VERSION="Version 0.16-Beta";
 ## Change to 1 if you want debugging messages.
 $DEBUG=0;
 
+## Global Exit Code.  Defaults to 0
+$ExitCode = 0;
+
 ## Here is an example of how to specify a location for a particular utility.  
 #$UtilLocation{'gunzip'} = '/usr/bin/gunzip';
 
@@ -121,7 +128,7 @@ if ( @ARGV < 2 )
 	print "svnbackup.pl - $VERSION\n";
 	print "Insufficient arguments.\n";
 	print "Usage:  svnbackup.pl REPODIR BACKUPDIR\n\n";
-	exit;
+	exit 1;
 	}
 $REPODIR = $ARGV[0];
 $BACKUPDIR = $ARGV[1];
@@ -157,6 +164,7 @@ if ( $LASTCHECKIN =~ m/^[0-9]+/)
 else
 	{
 	print "ABORT:  $REPODIR is not a valid SVN repository.\n\n";
+	$ExitCode = 1;
 	&unlockexit;
 	}
 
@@ -164,6 +172,7 @@ else
 if ($LASTCHECKIN == 0)
 	{
 	print "ABORT:  $REPODIR is an empty repository with no check-ins.\n\n";
+	$ExitCode = 1;
 	&unlockexit;
 	}
 
@@ -215,6 +224,7 @@ if ( -d $BACKUPDIR )
 		else
 			{
     		print "Existing backup in $BACKUPDIR (repo $SVNBACKUP) does not match repository $REPODIR.\n\n";
+			$ExitCode = 1;
     		&unlockexit;
 			}
 		
@@ -222,6 +232,7 @@ if ( -d $BACKUPDIR )
 		if ($OLDPERMS ne "$uid:$gid") 
 			{
 			print "Existing backup in $BACKUPDIR does not have the same OWNER:GROUP ($uid:$gid) as repository $REPODIR ($OLDPERMS).\n\n";
+			$ExitCode = 1;
     		&unlockexit;
 			}
 		}
@@ -233,6 +244,7 @@ else
   	if ($@) 
   		{
     	print "Couldn't create $BACKUPDIR: $@\n\n";
+		$ExitCode = 1;
     	&unlockexit;
   		}
   	
@@ -274,6 +286,7 @@ if ($FIRSTTOBACKUP <= $LASTCHECKIN)
 		## We have had a problem with svnadmin, and need to abort.  We should clean up before exiting, and exit before updating the log.
 		unlink("$BACKUPDIR/$FILENAME");
 		print "ERROR:  svnadmin command execution failed.\n";
+		$ExitCode = $status;
 		&unlockexit;
 		}
 	open(WRITELOG, ">>$BACKUPDIR/svnbackup.log");
@@ -283,6 +296,7 @@ if ($FIRSTTOBACKUP <= $LASTCHECKIN)
 else
 	{
 	print "The backup is current, so there is nothing to do.\n\n";
+	&unlockexit;
 	}
 
 
@@ -306,7 +320,7 @@ sub unlockexit {
 	flock(LOCK,8);
 	close(LOCK);
 	unlink($LockFile);
-	exit;
+	exit $ExitCode;
 	}
 	
 sub wanted {
